@@ -43,37 +43,57 @@ export interface TransitData {
 /** 現在扱いにする年(スライダー最大値) */
 export const CURRENT_YEAR = 2026;
 
-/** N05時系列データの遅延ロード */
-export async function loadHistoryData(data: TransitData): Promise<void> {
-  if (data.historySections || data.historyStations) return;
-  const [historySections, historyStations] = await Promise.all([
-    fetchOptional("/data/rail-history-sections.geojson"),
-    fetchOptional("/data/rail-history-stations.geojson"),
-  ]);
-  data.historySections = historySections;
-  data.historyStations = historyStations;
+let historyLoad: Promise<void> | null = null;
+
+/** N05時系列データの遅延ロード(in-flight共有・部分失敗は再試行可) */
+export function loadHistoryData(data: TransitData): Promise<void> {
+  if (data.historySections && data.historyStations) return Promise.resolve();
+  historyLoad ??= (async () => {
+    const [historySections, historyStations] = await Promise.all([
+      data.historySections ? Promise.resolve(data.historySections) : fetchOptional("/data/rail-history-sections.geojson"),
+      data.historyStations ? Promise.resolve(data.historyStations) : fetchOptional("/data/rail-history-stations.geojson"),
+    ]);
+    data.historySections = historySections;
+    data.historyStations = historyStations;
+    historyLoad = null;
+  })();
+  return historyLoad;
 }
+
+// era変更以外の再描画でdeck.glが再計算しないよう、フィルタ結果をeraでメモ化
+const eraCache = new Map<GeoJSON.FeatureCollection, { era: number; result: GeoJSON.FeatureCollection }>();
 
 /** 指定年に存在していた区間・駅のみ残す */
 export function filterByEra(fc: GeoJSON.FeatureCollection, era: number): GeoJSON.FeatureCollection {
-  return {
+  const cached = eraCache.get(fc);
+  if (cached && cached.era === era) return cached.result;
+  const result: GeoJSON.FeatureCollection = {
     type: "FeatureCollection",
     features: fc.features.filter((f) => {
       const p = f.properties as { from?: number | null; to?: number | null };
       return (p.from == null || p.from <= era) && (p.to == null || p.to >= era);
     }),
   };
+  eraCache.set(fc, { era, result });
+  return result;
 }
 
-/** バスデータ(重量級)の遅延ロード。取得失敗時はnullのまま */
-export async function loadBusData(data: TransitData): Promise<void> {
-  if (data.busRoutes || data.busStops) return;
-  const [busRoutes, busStops] = await Promise.all([
-    fetchOptional("/data/bus-routes.geojson"),
-    fetchOptional("/data/bus-stops.geojson"),
-  ]);
-  data.busRoutes = busRoutes;
-  data.busStops = busStops;
+// 連打による重複fetchを防ぐin-flight共有。失敗分(null)は次回呼び出しで再試行される
+let busLoad: Promise<void> | null = null;
+
+/** バスデータ(重量級)の遅延ロード。取得失敗時はnullのまま(再試行可) */
+export function loadBusData(data: TransitData): Promise<void> {
+  if (data.busRoutes && data.busStops) return Promise.resolve();
+  busLoad ??= (async () => {
+    const [busRoutes, busStops] = await Promise.all([
+      data.busRoutes ? Promise.resolve(data.busRoutes) : fetchOptional("/data/bus-routes.geojson"),
+      data.busStops ? Promise.resolve(data.busStops) : fetchOptional("/data/bus-stops.geojson"),
+    ]);
+    data.busRoutes = busRoutes;
+    data.busStops = busStops;
+    busLoad = null;
+  })();
+  return busLoad;
 }
 
 async function fetchOptional(url: string): Promise<GeoJSON.FeatureCollection | null> {
@@ -156,8 +176,10 @@ export function buildTransitLayers(
 ): Layer[] {
   const layers: Layer[] = [];
   const hover = (info: PickingInfo) => showTooltip(info, tooltip);
-  // 過去年ではN02現況の代わりにN05時系列(当時の路線網)を描画する
-  const historic = era < CURRENT_YEAR && data.historySections != null;
+  // 過去年ではN02現況の代わりにN05時系列(当時の路線網)を描画する。
+  // 履歴データ未取得のまま現況へフォールバックすると「過去なのに現在の網」に見えるため、
+  // 過去年では履歴データが揃うまで鉄道レイヤーを出さない
+  const historic = era < CURRENT_YEAR;
 
   if (state.ferry && data.ferryRoutes) {
     layers.push(
@@ -174,11 +196,11 @@ export function buildTransitLayers(
     );
   }
 
-  if (state.rail && historic) {
+  if (state.rail && historic && data.historySections) {
     layers.push(
       new GeoJsonLayer({
         id: "rail-history-sections",
-        data: filterByEra(data.historySections!, era),
+        data: filterByEra(data.historySections, era),
         lineWidthUnits: "pixels",
         getLineWidth: 1.8,
         getLineColor: MODE_COLORS.jr,
