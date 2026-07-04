@@ -1,0 +1,12 @@
+{
+  "name": "transit-japan-3d",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["web", "pipeline"],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "pipeline": "npm run build:all -w pipeline",
+    "test": "npm run test -w pipeline"
+  }
+}
