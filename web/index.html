@@ -66,6 +66,32 @@
       }
       #tooltip strong { color: var(--bp-ink); }
       #tooltip .op { color: var(--bp-muted); font-family: var(--mono); font-size: 10.5px; }
+      #tooltip.pinned { pointer-events: auto; }
+      #tooltip .focus-link {
+        display: block; margin-top: 6px; padding: 3px 8px; cursor: pointer;
+        background: none; border: 1px solid var(--bp-line); border-radius: 3px;
+        color: var(--bp-cyan); font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+      }
+      #tooltip .focus-link:hover { border-color: var(--bp-cyan); }
+
+      /* モード特化ビュー: パネルは対象モードの操作のみ残す */
+      .mode-link {
+        margin-left: auto; color: var(--bp-cyan); text-decoration: none;
+        font-family: var(--mono); font-size: 12px; padding: 0 3px; border-radius: 3px;
+      }
+      .mode-link:hover { background: rgba(93, 212, 240, 0.15); }
+      #back-overview {
+        display: none; color: var(--bp-cyan); text-decoration: none;
+        font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; margin-bottom: 6px;
+      }
+      #focus-title { display: none; font-family: var(--mono); font-size: 11px; color: var(--bp-ink); margin-bottom: 4px; letter-spacing: 0.08em; }
+      body[data-focus] #back-overview, body[data-focus] #focus-title { display: block; }
+      body[data-focus] #panel label { display: none; }
+      body[data-focus] .mode-link { display: none; }
+      body[data-focus="rail"] #panel label.row-stations,
+      body[data-focus="rail"] #panel label.row-vehicles { display: flex; }
+      body[data-focus]:not([data-focus="rail"]) #legend { display: none; }
+      body[data-focus]:not([data-focus="rail"]) #era { display: none; }
 
       #era {
         position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 50%;
@@ -129,13 +155,15 @@
     <div id="panel" class="hud">
       <h1>Transit Japan 3D</h1>
       <p class="sub">// nationwide public transport</p>
-      <label><input type="checkbox" id="toggle-rail" checked /><span class="chip" style="background:#5b8cff"></span>鉄道路線</label>
-      <label><input type="checkbox" id="toggle-stations" checked /><span class="chip dot" style="background:#e8edf7"></span>駅</label>
-      <label><input type="checkbox" id="toggle-bus" /><span class="chip" style="background:#ffca28"></span>バス<span class="tick" style="font-family:var(--mono);font-size:9px;color:var(--bp-muted)">(重め)</span></label>
-      <label><input type="checkbox" id="toggle-ferry" checked /><span class="chip" style="background:#4dd0e1"></span>航路(船)</label>
-      <label><input type="checkbox" id="toggle-air" checked /><span class="chip" style="background:#f06292"></span>空路・空港</label>
-      <label><input type="checkbox" id="toggle-ropeway" checked /><span class="chip" style="background:#aed581"></span>索道</label>
-      <label><input type="checkbox" id="toggle-vehicles" /><span class="chip dot" style="background:#ffca28"></span>車両(時刻表)</label>
+      <a id="back-overview" href="#">← 全体表示に戻る</a>
+      <div id="focus-title"></div>
+      <label class="row-rail"><input type="checkbox" id="toggle-rail" checked /><span class="chip" style="background:#5b8cff"></span>鉄道路線<a class="mode-link" data-mode="rail" href="#" title="鉄道特化ビュー">→</a></label>
+      <label class="row-stations"><input type="checkbox" id="toggle-stations" checked /><span class="chip dot" style="background:#e8edf7"></span>駅</label>
+      <label class="row-bus"><input type="checkbox" id="toggle-bus" /><span class="chip" style="background:#ffca28"></span>バス<span class="tick" style="font-family:var(--mono);font-size:9px;color:var(--bp-muted)">(重め)</span><a class="mode-link" data-mode="bus" href="#" title="バス特化ビュー">→</a></label>
+      <label class="row-ferry"><input type="checkbox" id="toggle-ferry" checked /><span class="chip" style="background:#4dd0e1"></span>航路(船)<a class="mode-link" data-mode="ferry" href="#" title="航路特化ビュー">→</a></label>
+      <label class="row-air"><input type="checkbox" id="toggle-air" checked /><span class="chip" style="background:#f06292"></span>空路・空港<a class="mode-link" data-mode="air" href="#" title="空路特化ビュー">→</a></label>
+      <label class="row-ropeway"><input type="checkbox" id="toggle-ropeway" checked /><span class="chip" style="background:#aed581"></span>索道<a class="mode-link" data-mode="ropeway" href="#" title="索道特化ビュー">→</a></label>
+      <label class="row-vehicles"><input type="checkbox" id="toggle-vehicles" /><span class="chip dot" style="background:#ffca28"></span>車両(時刻表)</label>
       <div id="vehicle-ctl" style="display:none; margin-top:4px; font-family:var(--mono); font-size:10.5px; align-items:center; gap:8px;">
         <span id="clock" style="color:var(--bp-cyan); letter-spacing:0.05em;">--:--</span>
         <select id="speed" aria-label="再生速度" style="background:var(--bp-navy-2); color:var(--bp-ink); border:1px solid var(--bp-line); border-radius:3px; font-family:var(--mono); font-size:10.5px;">

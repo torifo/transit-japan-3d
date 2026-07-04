@@ -40,7 +40,8 @@ export function createMap(container: HTMLElement): Promise<MapShell> {
     pitch: 50,
     bearing: 0,
     maxPitch: 75,
-    hash: true,
+    // "map"名義のハッシュ(#map=z/lat/lng…)にして &mode= のルーティングと共存させる
+    hash: "map",
     attributionControl: { compact: true },
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
