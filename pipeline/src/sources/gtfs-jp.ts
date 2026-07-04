@@ -57,7 +57,7 @@ export async function fetchFeed(feed: GtfsFeedInfo): Promise<string | null> {
       mkdirSync(tmpDir, { recursive: true });
       // 描画に必要なファイルだけ展開(stop_times等の巨大ファイルは触らない)
       // ファイルが存在しないと unzip が非0終了するため個別に許容する
-      for (const name of ["stops.txt", "routes.txt", "trips.txt", "shapes.txt"]) {
+      for (const name of ["stops.txt", "routes.txt", "trips.txt", "shapes.txt", "stop_times.txt"]) {
         try {
           execFileSync("unzip", ["-o", "-q", "-j", zipPath, name, `*/${name}`, "-d", tmpDir], { stdio: "ignore" });
         } catch {
@@ -68,6 +68,16 @@ export async function fetchFeed(feed: GtfsFeedInfo): Promise<string | null> {
       renameSync(tmpDir, extractDir);
     }
     if (!existsSync(path.join(extractDir, "stops.txt"))) throw new Error("stops.txt missing");
+    // 過去バージョンの展開ディレクトリに stop_times.txt が無い場合は追加展開する
+    if (!existsSync(path.join(extractDir, "stop_times.txt"))) {
+      try {
+        execFileSync("unzip", ["-o", "-q", "-j", zipPath, "stop_times.txt", "*/stop_times.txt", "-d", extractDir], {
+          stdio: "ignore",
+        });
+      } catch {
+        /* stop_times.txt が無いフィードは時刻表なしとして扱う */
+      }
+    }
     return extractDir;
   } catch (e) {
     console.warn(`[gtfs-jp] skip ${key}: ${(e as Error).message}`);
