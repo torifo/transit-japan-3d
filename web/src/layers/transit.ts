@@ -10,6 +10,7 @@ const MODE_COLORS: Record<string, [number, number, number, number]> = {
   tram: [255, 99, 132, 220],
   monorail: [186, 104, 200, 220],
   cable: [255, 235, 59, 230],
+  bus: [255, 202, 40, 130],
   ferry: [77, 208, 225, 180],
   air: [240, 98, 146, 70],
   ropeway: [174, 213, 129, 230],
@@ -18,6 +19,7 @@ const MODE_COLORS: Record<string, [number, number, number, number]> = {
 export type LayerState = {
   rail: boolean;
   stations: boolean;
+  bus: boolean;
   ferry: boolean;
   air: boolean;
   ropeway: boolean;
@@ -30,6 +32,20 @@ export interface TransitData {
   airRoutes: GeoJSON.FeatureCollection | null;
   airports: GeoJSON.FeatureCollection | null;
   ropeways: GeoJSON.FeatureCollection | null;
+  // バスは巨大なため初回トグルON時に遅延ロードする
+  busRoutes: GeoJSON.FeatureCollection | null;
+  busStops: GeoJSON.FeatureCollection | null;
+}
+
+/** バスデータ(重量級)の遅延ロード。取得失敗時はnullのまま */
+export async function loadBusData(data: TransitData): Promise<void> {
+  if (data.busRoutes || data.busStops) return;
+  const [busRoutes, busStops] = await Promise.all([
+    fetchOptional("/data/bus-routes.geojson"),
+    fetchOptional("/data/bus-stops.geojson"),
+  ]);
+  data.busRoutes = busRoutes;
+  data.busStops = busStops;
 }
 
 async function fetchOptional(url: string): Promise<GeoJSON.FeatureCollection | null> {
@@ -58,6 +74,8 @@ export async function loadTransitData(): Promise<{ data: TransitData; missing: s
       airRoutes,
       airports,
       ropeways,
+      busRoutes: null,
+      busStops: null,
     },
     missing,
   };
@@ -70,7 +88,8 @@ function showTooltip(info: PickingInfo, tooltip: Tooltip) {
     tooltip.hide();
     return;
   }
-  const name = p.stn ? `${p.stn}${p.mode === "air" ? "" : "駅"}` : (p.n ?? "(不明)");
+  const RAIL_MODES = ["shinkansen", "jr", "rail", "tram", "monorail", "cable"];
+  const name = p.stn ? `${p.stn}${RAIL_MODES.includes(p.mode as string) ? "駅" : ""}` : (p.n ?? "(不明)");
   const subtitle = `${p.n && p.stn ? p.n + " / " : ""}${p.op ?? ""}`;
   tooltip.show(name, subtitle, info.x, info.y);
 }
@@ -127,6 +146,37 @@ export function buildTransitLayers(data: TransitData, state: LayerState, tooltip
         pickable: true,
         autoHighlight: true,
         highlightColor: [255, 255, 255, 120],
+        onHover: hover,
+      }),
+    );
+  }
+
+  if (state.bus && data.busRoutes) {
+    layers.push(
+      new GeoJsonLayer({
+        id: "bus-routes",
+        data: data.busRoutes,
+        lineWidthUnits: "pixels",
+        getLineWidth: 1,
+        getLineColor: MODE_COLORS.bus,
+        pickable: true,
+        autoHighlight: true,
+        onHover: hover,
+      }),
+    );
+  }
+  if (state.bus && data.busStops) {
+    layers.push(
+      new GeoJsonLayer({
+        id: "bus-stops",
+        data: data.busStops,
+        pointType: "circle",
+        getPointRadius: 15,
+        pointRadiusMinPixels: 0.5,
+        pointRadiusMaxPixels: 4,
+        getFillColor: [255, 202, 40, 200],
+        pickable: true,
+        autoHighlight: true,
         onHover: hover,
       }),
     );
