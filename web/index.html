@@ -23,6 +23,15 @@
         max-width: 260px;
       }
       #tooltip .op { color: #98a4bd; }
+      #era {
+        position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 50%;
+        transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 10px;
+        background: rgba(11, 16, 32, 0.85); color: #e8edf7; border: 1px solid #26314f;
+        border-radius: 10px; padding: 8px 14px; font-family: system-ui, sans-serif;
+        backdrop-filter: blur(6px); width: min(70vw, 420px);
+      }
+      #era-label { font-size: 13px; font-weight: 600; min-width: 4.5em; text-align: center; }
+      #era-slider { flex: 1; accent-color: #5b8cff; }
     </style>
   </head>
   <body>
@@ -37,6 +46,10 @@
       <label><input type="checkbox" id="toggle-ropeway" checked />索道</label>
     </div>
     <div id="tooltip"></div>
+    <div id="era">
+      <span id="era-label">現在</span>
+      <input type="range" id="era-slider" min="1950" max="2026" step="1" value="2026" />
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

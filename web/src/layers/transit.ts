@@ -35,6 +35,34 @@ export interface TransitData {
   // バスは巨大なため初回トグルON時に遅延ロードする
   busRoutes: GeoJSON.FeatureCollection | null;
   busStops: GeoJSON.FeatureCollection | null;
+  // 時代スライダー用(N05時系列)。初回操作時に遅延ロード
+  historySections: GeoJSON.FeatureCollection | null;
+  historyStations: GeoJSON.FeatureCollection | null;
+}
+
+/** 現在扱いにする年(スライダー最大値) */
+export const CURRENT_YEAR = 2026;
+
+/** N05時系列データの遅延ロード */
+export async function loadHistoryData(data: TransitData): Promise<void> {
+  if (data.historySections || data.historyStations) return;
+  const [historySections, historyStations] = await Promise.all([
+    fetchOptional("/data/rail-history-sections.geojson"),
+    fetchOptional("/data/rail-history-stations.geojson"),
+  ]);
+  data.historySections = historySections;
+  data.historyStations = historyStations;
+}
+
+/** 指定年に存在していた区間・駅のみ残す */
+export function filterByEra(fc: GeoJSON.FeatureCollection, era: number): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: fc.features.filter((f) => {
+      const p = f.properties as { from?: number | null; to?: number | null };
+      return (p.from == null || p.from <= era) && (p.to == null || p.to >= era);
+    }),
+  };
 }
 
 /** バスデータ(重量級)の遅延ロード。取得失敗時はnullのまま */
@@ -76,6 +104,8 @@ export async function loadTransitData(): Promise<{ data: TransitData; missing: s
       ropeways,
       busRoutes: null,
       busStops: null,
+      historySections: null,
+      historyStations: null,
     },
     missing,
   };
@@ -90,7 +120,9 @@ function showTooltip(info: PickingInfo, tooltip: Tooltip) {
   }
   const RAIL_MODES = ["shinkansen", "jr", "rail", "tram", "monorail", "cable"];
   const name = p.stn ? `${p.stn}${RAIL_MODES.includes(p.mode as string) ? "駅" : ""}` : (p.n ?? "(不明)");
-  const subtitle = `${p.n && p.stn ? p.n + " / " : ""}${p.op ?? ""}`;
+  const period =
+    p.from != null || p.to != null ? ` [${p.from ?? "?"}〜${p.to ?? "現役"}]` : "";
+  const subtitle = `${p.n && p.stn ? p.n + " / " : ""}${p.op ?? ""}${period}`;
   tooltip.show(name, subtitle, info.x, info.y);
 }
 
@@ -116,9 +148,16 @@ function toArcs(fc: GeoJSON.FeatureCollection): AirArc[] {
     });
 }
 
-export function buildTransitLayers(data: TransitData, state: LayerState, tooltip: Tooltip): Layer[] {
+export function buildTransitLayers(
+  data: TransitData,
+  state: LayerState,
+  tooltip: Tooltip,
+  era: number = CURRENT_YEAR,
+): Layer[] {
   const layers: Layer[] = [];
   const hover = (info: PickingInfo) => showTooltip(info, tooltip);
+  // 過去年ではN02現況の代わりにN05時系列(当時の路線網)を描画する
+  const historic = era < CURRENT_YEAR && data.historySections != null;
 
   if (state.ferry && data.ferryRoutes) {
     layers.push(
@@ -135,7 +174,41 @@ export function buildTransitLayers(data: TransitData, state: LayerState, tooltip
     );
   }
 
-  if (state.rail) {
+  if (state.rail && historic) {
+    layers.push(
+      new GeoJsonLayer({
+        id: "rail-history-sections",
+        data: filterByEra(data.historySections!, era),
+        lineWidthUnits: "pixels",
+        getLineWidth: 1.8,
+        getLineColor: MODE_COLORS.jr,
+        pickable: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 120],
+        onHover: hover,
+      }),
+    );
+  }
+  if (state.stations && historic && data.historyStations) {
+    layers.push(
+      new GeoJsonLayer({
+        id: "rail-history-stations",
+        data: filterByEra(data.historyStations, era),
+        pointType: "circle",
+        getPointRadius: 40,
+        pointRadiusMinPixels: 1.2,
+        pointRadiusMaxPixels: 6,
+        getFillColor: [232, 237, 247, 235],
+        getLineColor: [11, 16, 32, 255],
+        lineWidthMinPixels: 0.5,
+        pickable: true,
+        autoHighlight: true,
+        onHover: hover,
+      }),
+    );
+  }
+
+  if (state.rail && !historic) {
     layers.push(
       new GeoJsonLayer({
         id: "rail-sections",
@@ -234,7 +307,7 @@ export function buildTransitLayers(data: TransitData, state: LayerState, tooltip
     );
   }
 
-  if (state.stations) {
+  if (state.stations && !historic) {
     layers.push(
       new GeoJsonLayer({
         id: "rail-stations",

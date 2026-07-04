@@ -1,5 +1,12 @@
 import { createMap } from "./map";
-import { buildTransitLayers, loadTransitData, loadBusData, type LayerState } from "./layers/transit";
+import {
+  buildTransitLayers,
+  loadTransitData,
+  loadBusData,
+  loadHistoryData,
+  CURRENT_YEAR,
+  type LayerState,
+} from "./layers/transit";
 import { setupTooltip, showError } from "./ui/panel";
 
 async function init() {
@@ -12,10 +19,20 @@ async function init() {
   }
 
   const state: LayerState = { rail: true, stations: true, bus: false, ferry: true, air: true, ropeway: true };
+  let era = CURRENT_YEAR;
   const render = () => {
-    shell.overlay.setProps({ layers: buildTransitLayers(data, state, tooltip) });
+    shell.overlay.setProps({ layers: buildTransitLayers(data, state, tooltip, era) });
   };
   render();
+
+  const eraSlider = document.getElementById("era-slider") as HTMLInputElement;
+  const eraLabel = document.getElementById("era-label")!;
+  eraSlider.addEventListener("input", async () => {
+    era = Number(eraSlider.value);
+    eraLabel.textContent = era >= CURRENT_YEAR ? "現在" : `${era}年`;
+    await loadHistoryData(data);
+    render();
+  });
 
   for (const key of Object.keys(state) as (keyof LayerState)[]) {
     const el = document.getElementById(`toggle-${key}`) as HTMLInputElement | null;
