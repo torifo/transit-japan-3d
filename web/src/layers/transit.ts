@@ -42,36 +42,37 @@ async function fetchOptional(url: string): Promise<GeoJSON.FeatureCollection | n
   }
 }
 
-export async function loadTransitData(): Promise<TransitData> {
-  const [railSections, railStations, ferryRoutes, airRoutes, airports, ropeways] = await Promise.all([
-    fetch("/data/rail-sections.geojson").then((r) => {
-      if (!r.ok) throw new Error(`rail-sections: ${r.status}`);
-      return r.json();
-    }),
-    fetch("/data/rail-stations.geojson").then((r) => {
-      if (!r.ok) throw new Error(`rail-stations: ${r.status}`);
-      return r.json();
-    }),
-    fetchOptional("/data/ferry-routes.geojson"),
-    fetchOptional("/data/air-routes.geojson"),
-    fetchOptional("/data/airports.geojson"),
-    fetchOptional("/data/ropeways.geojson"),
-  ]);
-  return { railSections, railStations, ferryRoutes, airRoutes, airports, ropeways };
+const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+
+/** 一部データの取得失敗では全体を止めず、取れたレイヤーだけ返す */
+export async function loadTransitData(): Promise<{ data: TransitData; missing: string[] }> {
+  const names = ["rail-sections", "rail-stations", "ferry-routes", "air-routes", "airports", "ropeways"];
+  const results = await Promise.all(names.map((n) => fetchOptional(`/data/${n}.geojson`)));
+  const missing = names.filter((_, i) => results[i] === null);
+  const [railSections, railStations, ferryRoutes, airRoutes, airports, ropeways] = results;
+  return {
+    data: {
+      railSections: railSections ?? EMPTY,
+      railStations: railStations ?? EMPTY,
+      ferryRoutes,
+      airRoutes,
+      airports,
+      ropeways,
+    },
+    missing,
+  };
 }
 
 function showTooltip(info: PickingInfo, tooltip: Tooltip) {
+  // GeoJSON featureは.properties、ArcLayerのAirArcはプレーンオブジェクト
   const p = info.object?.properties ?? (info.object as { n?: string; op?: string } | undefined);
   if (!p) {
     tooltip.hide();
     return;
   }
   const name = p.stn ? `${p.stn}${p.mode === "air" ? "" : "駅"}` : (p.n ?? "(不明)");
-  tooltip.show(
-    `<strong>${name}</strong><br/><span class="op">${p.n && p.stn ? p.n + " / " : ""}${p.op ?? ""}</span>`,
-    info.x,
-    info.y,
-  );
+  const subtitle = `${p.n && p.stn ? p.n + " / " : ""}${p.op ?? ""}`;
+  tooltip.show(name, subtitle, info.x, info.y);
 }
 
 interface AirArc {
@@ -83,7 +84,7 @@ interface AirArc {
 
 function toArcs(fc: GeoJSON.FeatureCollection): AirArc[] {
   return fc.features
-    .filter((f) => f.geometry?.type === "LineString")
+    .filter((f) => f.geometry?.type === "LineString" && (f.geometry as GeoJSON.LineString).coordinates.length >= 2)
     .map((f) => {
       const coords = (f.geometry as GeoJSON.LineString).coordinates;
       const p = f.properties as { n?: string; pax?: number };
