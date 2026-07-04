@@ -12,9 +12,12 @@ export function findFile(dir: string, keyword: string, ext: string): string {
     readdirSync(d, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)],
     );
-  const hit = walk(dir).find((f) => f.includes(keyword) && f.endsWith(ext));
-  if (!hit) throw new Error(`file not found: *${keyword}*${ext} in ${dir}`);
-  return hit;
+  // KSJのzipはUTF-8/Shift-JISの同名ファイルを含むことがあるためUTF-8側を優先する
+  const hits = walk(dir)
+    .filter((f) => f.includes(keyword) && f.endsWith(ext))
+    .sort((a, b) => Number(b.includes("UTF-8")) - Number(a.includes("UTF-8")));
+  if (hits.length === 0) throw new Error(`file not found: *${keyword}*${ext} in ${dir}`);
+  return hits[0];
 }
 
 export function mapshaper(args: string[]) {

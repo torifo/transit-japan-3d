@@ -26,6 +26,7 @@ export async function overpass(query: string): Promise<OverpassResponse> {
       "User-Agent": "transit-japan-3d/0.1 (personal research)",
     },
     body: `data=${encodeURIComponent(query)}`,
+    signal: AbortSignal.timeout(300_000),
   });
   if (!res.ok) throw new Error(`overpass failed: ${res.status}`);
   const json = await res.json();

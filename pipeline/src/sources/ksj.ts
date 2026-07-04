@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, createWriteStream } from "node:fs";
+import { existsSync, mkdirSync, createWriteStream, renameSync } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import path from "node:path";
@@ -18,7 +18,10 @@ export async function fetchKsj(id: string, url: string): Promise<string> {
     console.log(`[ksj:${id}] downloading ${url}`);
     const res = await fetch(url);
     if (!res.ok || !res.body) throw new Error(`download failed: ${res.status} ${url}`);
-    await pipeline(Readable.fromWeb(res.body as import("node:stream/web").ReadableStream), createWriteStream(zipPath));
+    // 中断で壊れたzipが残らないよう一時ファイル経由で書き込む
+    const tmpPath = `${zipPath}.tmp`;
+    await pipeline(Readable.fromWeb(res.body as import("node:stream/web").ReadableStream), createWriteStream(tmpPath));
+    renameSync(tmpPath, zipPath);
   } else {
     console.log(`[ksj:${id}] zip cached`);
   }
@@ -31,7 +34,7 @@ export async function fetchKsj(id: string, url: string): Promise<string> {
 }
 
 export const KSJ_URLS = {
-  n02Rail: "https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-24/N02-24_GML.zip",
+  n02Rail: "https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-25/N02-25_GML.zip",
   n05RailTimeSeries: "https://nlftp.mlit.go.jp/ksj/gml/data/N05/N05-24/N05-24_GML.zip",
   n09FerryRoutes: "https://nlftp.mlit.go.jp/ksj/gml/data/N09/N09-12/N09-12_GML.zip",
   s10bAirFlow: "https://nlftp.mlit.go.jp/ksj/gml/data/S10b/S10b-14/S10b-14_GML.zip",
