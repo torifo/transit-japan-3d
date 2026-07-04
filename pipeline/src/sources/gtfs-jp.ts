@@ -25,11 +25,12 @@ export async function listFeeds(): Promise<GtfsFeedInfo[]> {
   if (!res.ok) throw new Error(`gtfs-data.jp files API failed: ${res.status}`);
   const json = (await res.json()) as { body?: GtfsFeedInfo[] } | GtfsFeedInfo[];
   const body = Array.isArray(json) ? json : (json.body ?? []);
-  // 同一org+feedで複数期間が返ることがあるため、キーごとに最初の1件へ絞る
+  // 同一org+feedで複数期間が返るため、file_to_dateが最も新しい版を採用する
   const seen = new Map<string, GtfsFeedInfo>();
   for (const f of body) {
     const key = `${f.organization_id}/${f.feed_id}`;
-    if (!seen.has(key)) seen.set(key, f);
+    const cur = seen.get(key);
+    if (!cur || (f.file_to_date ?? "") > (cur.file_to_date ?? "")) seen.set(key, f);
   }
   return [...seen.values()];
 }
@@ -50,22 +51,28 @@ export async function fetchFeed(feed: GtfsFeedInfo): Promise<string | null> {
       renameSync(tmpPath, zipPath);
     }
     if (!existsSync(extractDir)) {
-      mkdirSync(extractDir, { recursive: true });
+      // 中断で不完全な展開が「展開済み」扱いにならないよう一時ディレクトリ経由
+      const tmpDir = `${extractDir}.tmp`;
+      rmSync(tmpDir, { recursive: true, force: true });
+      mkdirSync(tmpDir, { recursive: true });
       // 描画に必要なファイルだけ展開(stop_times等の巨大ファイルは触らない)
       // ファイルが存在しないと unzip が非0終了するため個別に許容する
       for (const name of ["stops.txt", "routes.txt", "trips.txt", "shapes.txt"]) {
         try {
-          execFileSync("unzip", ["-o", "-q", "-j", zipPath, name, `*/${name}`, "-d", extractDir], { stdio: "ignore" });
+          execFileSync("unzip", ["-o", "-q", "-j", zipPath, name, `*/${name}`, "-d", tmpDir], { stdio: "ignore" });
         } catch {
           /* 任意ファイル: 無ければスキップ */
         }
       }
+      if (!existsSync(path.join(tmpDir, "stops.txt"))) throw new Error("stops.txt missing");
+      renameSync(tmpDir, extractDir);
     }
     if (!existsSync(path.join(extractDir, "stops.txt"))) throw new Error("stops.txt missing");
     return extractDir;
   } catch (e) {
     console.warn(`[gtfs-jp] skip ${key}: ${(e as Error).message}`);
     rmSync(`${zipPath}.tmp`, { force: true });
+    rmSync(`${extractDir}.tmp`, { recursive: true, force: true });
     return null;
   }
 }

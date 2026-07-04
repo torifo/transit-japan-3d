@@ -33,6 +33,10 @@ export function parseCsv(text: string): Record<string, string>[] {
       field += c;
     }
   }
+  if (inQuotes) {
+    // 閉じられていないクォート: 残り全体が1フィールドに吸われるため警告して可視化する
+    console.warn("[csv] unterminated quoted field at EOF — input may be malformed");
+  }
   if (field !== "" || row.length > 0) {
     row.push(field);
     if (row.length > 1 || row[0] !== "") rows.push(row);

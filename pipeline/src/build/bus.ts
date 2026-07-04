@@ -10,6 +10,23 @@ import { OUT_DIR } from "./util";
 const CONCURRENCY = 5;
 const round = (v: number) => Math.round(v * 1e4) / 1e4; // 約11m精度
 
+// 空文字は Number() で 0 になり日本外の点として混入するため、日本近傍bboxで検証する
+function parseJpCoord(lonRaw: string, latRaw: string): [number, number] | null {
+  if (!lonRaw || !latRaw) return null;
+  const lon = Number(lonRaw);
+  const lat = Number(latRaw);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  if (lon < 122 || lon > 154 || lat < 20 || lat > 46) return null;
+  return [round(lon), round(lat)];
+}
+
+// GTFS route_type のうちバス系のみ採用(3=バス, 11=トロリーバス, 700-799=拡張バス)
+function isBusRouteType(t: string): boolean {
+  if (t === "" || t === "3" || t === "11") return true;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 700 && n <= 799;
+}
+
 interface FeedResult {
   stops: GeoJSON.Feature[];
   shapes: GeoJSON.Feature[];
@@ -24,39 +41,49 @@ function processFeed(feed: GtfsFeedInfo, dir: string): FeedResult {
   const org = feed.organization_name;
   const stops: GeoJSON.Feature[] = [];
   for (const s of readCsvIfExists(dir, "stops.txt")) {
-    const lon = Number(s.stop_lon);
-    const lat = Number(s.stop_lat);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat) || (lon === 0 && lat === 0)) continue;
+    // 駅構造体(location_type=1)や入口(2)等は除外し、乗降可能な停留所のみ
+    if (s.location_type && s.location_type !== "0") continue;
+    const coord = parseJpCoord(s.stop_lon, s.stop_lat);
+    if (!coord) continue;
     stops.push({
       type: "Feature",
-      geometry: { type: "Point", coordinates: [round(lon), round(lat)] },
+      geometry: { type: "Point", coordinates: coord },
       properties: { stn: s.stop_name || null, op: org, mode: "bus" },
     });
   }
 
-  // shape→route対応(trips.txt)と路線名(routes.txt)。路線ごとに代表shape 1本へ絞る
-  const routes = new Map(readCsvIfExists(dir, "routes.txt").map((r) => [r.route_id, r]));
+  // shape→route対応(trips.txt)と路線名(routes.txt)。バス系route_typeのみ・路線ごとに代表shape 1本
+  const routes = new Map(
+    readCsvIfExists(dir, "routes.txt")
+      .filter((r) => isBusRouteType(r.route_type ?? ""))
+      .map((r) => [r.route_id, r]),
+  );
   const routeByShape = new Map<string, string>();
   for (const t of readCsvIfExists(dir, "trips.txt")) {
-    if (t.shape_id && !routeByShape.has(t.shape_id)) routeByShape.set(t.shape_id, t.route_id);
+    if (t.shape_id && routes.has(t.route_id) && !routeByShape.has(t.shape_id)) {
+      routeByShape.set(t.shape_id, t.route_id);
+    }
   }
 
   const shapePoints = new Map<string, [number, number, number][]>();
   for (const p of readCsvIfExists(dir, "shapes.txt")) {
-    const lon = Number(p.shape_pt_lon);
-    const lat = Number(p.shape_pt_lat);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const seq = Number(p.shape_pt_sequence);
+    const coord = parseJpCoord(p.shape_pt_lon, p.shape_pt_lat);
+    if (!coord || !Number.isFinite(seq)) continue;
     let arr = shapePoints.get(p.shape_id);
     if (!arr) {
       arr = [];
       shapePoints.set(p.shape_id, arr);
     }
-    arr.push([Number(p.shape_pt_sequence), lon, lat]);
+    arr.push([seq, coord[0], coord[1]]);
   }
 
+  const hasTrips = routeByShape.size > 0;
   const bestShapeForRoute = new Map<string, { shapeId: string; count: number }>();
   for (const [shapeId, pts] of shapePoints) {
-    const routeId = routeByShape.get(shapeId) ?? shapeId;
+    // trips.txtがある場合はバス系routeに紐づくshapeのみ採用
+    const routeId = routeByShape.get(shapeId) ?? (hasTrips ? null : shapeId);
+    if (routeId == null) continue;
     const cur = bestShapeForRoute.get(routeId);
     if (!cur || pts.length > cur.count) bestShapeForRoute.set(routeId, { shapeId, count: pts.length });
   }
@@ -66,7 +93,7 @@ function processFeed(feed: GtfsFeedInfo, dir: string): FeedResult {
     const pts = shapePoints
       .get(shapeId)!
       .sort((a, b) => a[0] - b[0])
-      .map(([, lon, lat]) => [round(lon), round(lat)] as [number, number]);
+      .map(([, lon, lat]) => [lon, lat] as [number, number]);
     // 単純間引き: 端点を残し2点ごと
     const thinned = pts.filter((_, i) => i % 2 === 0 || i === pts.length - 1);
     if (thinned.length < 2) continue;
