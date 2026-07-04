@@ -312,7 +312,11 @@ export function buildTransitLayers(
     );
   }
 
-  if (state.air && data.airRoutes) {
+  // 1945〜1951年はGHQにより民間航空が全面禁止(1951年JAL設立で再開)。
+  // 空路データは現行のみで時系列を持たないため、再開前の年代では非表示にする
+  const airExists = era >= 1951;
+
+  if (state.air && airExists && data.airRoutes) {
     layers.push(
       new ArcLayer<AirArc>({
         id: "air-routes",
@@ -330,7 +334,7 @@ export function buildTransitLayers(
     );
   }
 
-  if (state.air && data.airports) {
+  if (state.air && airExists && data.airports) {
     layers.push(
       new GeoJsonLayer({
         id: "airports",
