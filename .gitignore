@@ -1,0 +1,7 @@
+data/raw/
+data/dist/
+node_modules/
+dist/
+.DS_Store
+.env
+web/public/data/
