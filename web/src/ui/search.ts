@@ -7,7 +7,8 @@ export function setupSearch(map: maplibregl.Map): void {
   const input = document.getElementById("search-input") as HTMLInputElement;
   const results = document.getElementById("search-results")!;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let lastQuery = "";
+  // 入力イベントごとに世代を進め、古いレスポンスを確実に破棄する
+  let seq = 0;
 
   const clear = () => {
     results.replaceChildren();
@@ -16,15 +17,15 @@ export function setupSearch(map: maplibregl.Map): void {
 
   input.addEventListener("input", () => {
     const q = input.value.trim();
+    const mySeq = ++seq;
     clearTimeout(timer);
     if (q.length < 2) {
       clear();
       return;
     }
     timer = setTimeout(async () => {
-      lastQuery = q;
       const res = await suggestPlaces(q);
-      if (!res || lastQuery !== q) return; // 古いレスポンスは破棄
+      if (!res || mySeq !== seq) return; // 古いレスポンスは破棄
       results.replaceChildren();
       for (const p of res.places.slice(0, 6)) {
         if (p.lat == null || p.lon == null) continue;

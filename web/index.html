@@ -115,10 +115,12 @@
       #station-panel .sp-empty { color: var(--bp-muted); }
 
       @media (max-width: 480px) {
-        #panel { max-width: 180px; font-size: 12px; }
+        #panel { max-width: 150px; font-size: 12px; }
         #legend { grid-template-columns: 1fr; }
         #era { width: 86vw; gap: 8px; padding: 8px 12px; }
-        #search { width: 44vw; }
+        #search { width: 40vw; }
+        /* 発車標が年代スライダーを覆わないよう持ち上げる */
+        #station-panel { bottom: calc(max(28px, env(safe-area-inset-bottom)) + 62px); max-height: 38vh; }
       }
     </style>
   </head>

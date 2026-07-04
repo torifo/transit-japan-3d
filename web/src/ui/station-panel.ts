@@ -2,14 +2,17 @@ import { reversePlaces, stationDepartures, suggestLocations, type Departure } fr
 
 // 駅タップ→発車標パネル(blueprint HUDトーン)。全てtextContentで構築(XSS対策)
 
+// 24時超は鉄道慣習どおり「25:10」形式で表示(深夜便を翌日と誤読させない)
 const fmtTime = (secs: number) => {
-  const h = Math.floor(secs / 3600) % 24;
+  const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
 export class StationPanel {
   private el: HTMLElement;
+  // 連打時に古いレスポンスで上書きしないための世代カウンタ
+  private requestSeq = 0;
 
   constructor() {
     this.el = document.getElementById("station-panel")!;
@@ -26,11 +29,14 @@ export class StationPanel {
    * 無ければ places/reverse の transit ソース駅にフォールバック。該当なしなら何もしない。
    */
   async showAt(lat: number, lon: number, name?: string | null): Promise<void> {
+    const seq = ++this.requestSeq;
     let stationId: string | null = null;
     let stationName: string | null = null;
 
     if (name) {
-      const loc = await suggestLocations(name);
+      // 同名駅が多い駅名(本町・中央等)で真の最近傍を取りこぼさないよう多めに取得
+      const loc = await suggestLocations(name, 20);
+      if (seq !== this.requestSeq) return;
       const near = (loc?.stations ?? [])
         .filter((s) => s.lat != null && s.lon != null)
         .map((s) => ({ s, d: (s.lat! - lat) ** 2 + ((s.lon! - lon) * Math.cos((lat * Math.PI) / 180)) ** 2 }))
@@ -43,6 +49,7 @@ export class StationPanel {
     }
     if (!stationId) {
       const rev = await reversePlaces(lat, lon);
+      if (seq !== this.requestSeq) return;
       // OSM/ジオコーダ由来のidは発車標APIの駅IDではないため、transitソースの駅のみ対象
       const station = rev?.places.find((p) => p.source === "transit" && (p.kind === "station" || p.kind === "stop"));
       if (!station) return;
@@ -53,10 +60,15 @@ export class StationPanel {
     const title = this.el.querySelector(".sp-title")!;
     const list = this.el.querySelector(".sp-list")!;
     title.textContent = stationName ?? "";
-    list.replaceChildren();
+    const loading = document.createElement("div");
+    loading.className = "sp-row sp-empty";
+    loading.textContent = "読込中…";
+    list.replaceChildren(loading);
     this.el.style.display = "block";
 
     const dep = await stationDepartures(stationId);
+    if (seq !== this.requestSeq) return;
+    list.replaceChildren();
     if (!dep || dep.departures.length === 0) {
       const li = document.createElement("div");
       li.className = "sp-row sp-empty";
