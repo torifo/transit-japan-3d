@@ -9,6 +9,8 @@ import {
 } from "./layers/transit";
 import { VehicleAnimator } from "./anim/vehicles";
 import { setupTooltip, showError } from "./ui/panel";
+import { setupSearch } from "./ui/search";
+import { StationPanel } from "./ui/station-panel";
 import type { Layer } from "@deck.gl/core";
 
 async function init() {
@@ -85,6 +87,17 @@ async function init() {
   });
   shell.map.on("moveend", () => {
     if (vehiclesOn) animator.syncViewport(shell.map);
+  });
+
+  // API連携: 場所検索と駅タップ→発車標(API不達時は静かに無効)
+  setupSearch(shell.map);
+  const stationPanel = new StationPanel();
+  shell.map.on("click", (e) => {
+    if (shell.map.getZoom() < 10) return; // 俯瞰中の誤タップを避ける
+    // 駅ポイントをピックできれば駅名で正確にID解決、できなければ座標フォールバック
+    const picked = shell.overlay.pickObject({ x: e.point.x, y: e.point.y, radius: 10 });
+    const stn = (picked?.object?.properties as { stn?: string } | undefined)?.stn;
+    void stationPanel.showAt(e.lngLat.lat, e.lngLat.lng, stn ?? null);
   });
 
   const eraSlider = document.getElementById("era-slider") as HTMLInputElement;
