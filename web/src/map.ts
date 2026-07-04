@@ -22,7 +22,7 @@ export function createMap(container: HTMLElement): Promise<MapShell> {
           tileSize: 256,
           maxzoom: 18,
           attribution:
-            "地図タイル: <a href='https://maps.gsi.go.jp/development/ichiran.html'>国土地理院</a> / 交通データ: 国土数値情報 N02・N09・S10b・C28(国土交通省) / 索道: © <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors",
+            "<a href='https://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>を加工して作成 / 「国土数値情報(N02・N09・S10b・C28)」(国土交通省)をもとに加工して作成 / 索道: © <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors (ODbL)",
         },
       },
       layers: [
