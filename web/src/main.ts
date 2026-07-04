@@ -7,7 +7,9 @@ import {
   CURRENT_YEAR,
   type LayerState,
 } from "./layers/transit";
+import { VehicleAnimator } from "./anim/vehicles";
 import { setupTooltip, showError } from "./ui/panel";
+import type { Layer } from "@deck.gl/core";
 
 async function init() {
   const shell = await createMap(document.getElementById("map")!);
@@ -20,10 +22,70 @@ async function init() {
 
   const state: LayerState = { rail: true, stations: true, bus: false, ferry: true, air: true, ropeway: true };
   let era = CURRENT_YEAR;
+  let vehiclesOn = false;
+  let staticLayers: Layer[] = [];
+  let vehicleLayer: Layer | null = null;
+
+  const apply = () => {
+    shell.overlay.setProps({ layers: vehicleLayer ? [...staticLayers, vehicleLayer] : staticLayers });
+  };
   const render = () => {
-    shell.overlay.setProps({ layers: buildTransitLayers(data, state, tooltip, era) });
+    staticLayers = buildTransitLayers(data, state, tooltip, era);
+    apply();
   };
   render();
+
+  // 車両アニメーション(時刻表補間)。過去年表示中は現代の車両を出さない
+  const animator = new VehicleAnimator();
+  const clockEl = document.getElementById("clock")!;
+  const vehCountEl = document.getElementById("veh-count")!;
+  const vehicleCtl = document.getElementById("vehicle-ctl") as HTMLElement;
+  animator.speed = 60;
+  const fmtClock = (sec: number) => {
+    const h = Math.floor(sec / 3600) % 24;
+    const m = Math.floor((sec % 3600) / 60);
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+  let rafId = 0;
+  const loop = () => {
+    if (!vehiclesOn) return;
+    if (era >= CURRENT_YEAR) {
+      const vehicles = animator.tick();
+      vehicleLayer = animator.buildLayer(vehicles, (info) => {
+        const v = info.object as { name?: string; op?: string } | undefined;
+        if (v) tooltip.show(v.name || "(路線名なし)", v.op ?? "", info.x, info.y);
+        else tooltip.hide();
+      });
+      clockEl.textContent = fmtClock(animator.clockSec);
+      vehCountEl.textContent = `${vehicles.length}台`;
+      apply();
+    }
+    rafId = requestAnimationFrame(loop);
+  };
+
+  document.getElementById("toggle-vehicles")!.addEventListener("change", async (e) => {
+    vehiclesOn = (e.target as HTMLInputElement).checked;
+    vehicleCtl.style.display = vehiclesOn ? "flex" : "none";
+    if (vehiclesOn) {
+      const ok = await animator.init();
+      if (!ok) {
+        showError("時刻表データがありません(pipeline/build/timetable.ts を実行)");
+        return;
+      }
+      animator.syncViewport(shell.map);
+      loop();
+    } else {
+      cancelAnimationFrame(rafId);
+      vehicleLayer = null;
+      apply();
+    }
+  });
+  document.getElementById("speed")!.addEventListener("change", (e) => {
+    animator.speed = Number((e.target as HTMLSelectElement).value);
+  });
+  shell.map.on("moveend", () => {
+    if (vehiclesOn) animator.syncViewport(shell.map);
+  });
 
   const eraSlider = document.getElementById("era-slider") as HTMLInputElement;
   const eraLabel = document.getElementById("era-label")!;

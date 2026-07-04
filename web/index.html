@@ -97,6 +97,18 @@
       <label><input type="checkbox" id="toggle-ferry" checked /><span class="chip" style="background:#4dd0e1"></span>航路(船)</label>
       <label><input type="checkbox" id="toggle-air" checked /><span class="chip" style="background:#f06292"></span>空路・空港</label>
       <label><input type="checkbox" id="toggle-ropeway" checked /><span class="chip" style="background:#aed581"></span>索道</label>
+      <label><input type="checkbox" id="toggle-vehicles" /><span class="chip dot" style="background:#ffca28"></span>車両(時刻表)</label>
+      <div id="vehicle-ctl" style="display:none; margin-top:4px; font-family:var(--mono); font-size:10.5px; align-items:center; gap:8px;">
+        <span id="clock" style="color:var(--bp-cyan); letter-spacing:0.05em;">--:--</span>
+        <select id="speed" aria-label="再生速度" style="background:var(--bp-navy-2); color:var(--bp-ink); border:1px solid var(--bp-line); border-radius:3px; font-family:var(--mono); font-size:10.5px;">
+          <option value="1">1×</option>
+          <option value="10">10×</option>
+          <option value="60" selected>60×</option>
+          <option value="300">300×</option>
+          <option value="0">⏸</option>
+        </select>
+        <span id="veh-count" style="color:var(--bp-muted);"></span>
+      </div>
       <div id="legend">
         <span><span class="chip" style="background:#38d39f"></span>新幹線</span>
         <span><span class="chip" style="background:#5b8cff"></span>JR</span>
