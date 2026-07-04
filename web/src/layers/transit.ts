@@ -168,11 +168,25 @@ function toArcs(fc: GeoJSON.FeatureCollection): AirArc[] {
     });
 }
 
+/** フォーカスモード時の強調係数。overview(null)では全て1 */
+export interface FocusStyle {
+  lineWidth: number;
+  pointRadius: number;
+  alphaBoost: number;
+}
+
+const NO_FOCUS: FocusStyle = { lineWidth: 1, pointRadius: 1, alphaBoost: 1 };
+
+function boostAlpha(color: [number, number, number, number], f: number): [number, number, number, number] {
+  return [color[0], color[1], color[2], Math.min(255, Math.round(color[3] * f))];
+}
+
 export function buildTransitLayers(
   data: TransitData,
   state: LayerState,
   tooltip: Tooltip,
   era: number = CURRENT_YEAR,
+  focus: FocusStyle = NO_FOCUS,
 ): Layer[] {
   const layers: Layer[] = [];
   const hover = (info: PickingInfo) => showTooltip(info, tooltip);
@@ -187,8 +201,8 @@ export function buildTransitLayers(
         id: "ferry-routes",
         data: data.ferryRoutes,
         lineWidthUnits: "pixels",
-        getLineWidth: 1.2,
-        getLineColor: MODE_COLORS.ferry,
+        getLineWidth: 1.2 * focus.lineWidth,
+        getLineColor: boostAlpha(MODE_COLORS.ferry, focus.alphaBoost),
         pickable: true,
         autoHighlight: true,
         onHover: hover,
@@ -202,8 +216,8 @@ export function buildTransitLayers(
         id: "rail-history-sections",
         data: filterByEra(data.historySections, era),
         lineWidthUnits: "pixels",
-        getLineWidth: 1.8,
-        getLineColor: MODE_COLORS.jr,
+        getLineWidth: 1.8 * focus.lineWidth,
+        getLineColor: boostAlpha(MODE_COLORS.jr, focus.alphaBoost),
         pickable: true,
         autoHighlight: true,
         highlightColor: [255, 255, 255, 120],
@@ -217,9 +231,9 @@ export function buildTransitLayers(
         id: "rail-history-stations",
         data: filterByEra(data.historyStations, era),
         pointType: "circle",
-        getPointRadius: 40,
-        pointRadiusMinPixels: 1.2,
-        pointRadiusMaxPixels: 6,
+        getPointRadius: 40 * focus.pointRadius,
+        pointRadiusMinPixels: 1.2 * focus.pointRadius,
+        pointRadiusMaxPixels: 6 * focus.pointRadius,
         getFillColor: [232, 237, 247, 235],
         getLineColor: [11, 16, 32, 255],
         lineWidthMinPixels: 0.5,
@@ -236,8 +250,9 @@ export function buildTransitLayers(
         id: "rail-sections",
         data: data.railSections,
         lineWidthUnits: "pixels",
-        getLineWidth: (f) => (f.properties?.mode === "shinkansen" ? 2.5 : 1.5),
-        getLineColor: (f) => MODE_COLORS[f.properties?.mode as string] ?? MODE_COLORS.rail,
+        getLineWidth: (f) => (f.properties?.mode === "shinkansen" ? 2.5 : 1.5) * focus.lineWidth,
+        getLineColor: (f) =>
+          boostAlpha(MODE_COLORS[f.properties?.mode as string] ?? MODE_COLORS.rail, focus.alphaBoost),
         pickable: true,
         autoHighlight: true,
         highlightColor: [255, 255, 255, 120],
@@ -252,8 +267,8 @@ export function buildTransitLayers(
         id: "bus-routes",
         data: data.busRoutes,
         lineWidthUnits: "pixels",
-        getLineWidth: 1,
-        getLineColor: MODE_COLORS.bus,
+        getLineWidth: 1 * focus.lineWidth,
+        getLineColor: boostAlpha(MODE_COLORS.bus, focus.alphaBoost),
         pickable: true,
         autoHighlight: true,
         onHover: hover,
@@ -266,9 +281,9 @@ export function buildTransitLayers(
         id: "bus-stops",
         data: data.busStops,
         pointType: "circle",
-        getPointRadius: 15,
+        getPointRadius: 15 * focus.pointRadius,
         pointRadiusMinPixels: 0.5,
-        pointRadiusMaxPixels: 4,
+        pointRadiusMaxPixels: 4 * focus.pointRadius,
         getFillColor: [255, 202, 40, 200],
         pickable: true,
         autoHighlight: true,
@@ -283,7 +298,7 @@ export function buildTransitLayers(
         id: "ropeways",
         data: data.ropeways,
         lineWidthUnits: "pixels",
-        getLineWidth: 2,
+        getLineWidth: 2 * focus.lineWidth,
         getLineColor: MODE_COLORS.ropeway,
         pickable: true,
         autoHighlight: true,
@@ -300,9 +315,9 @@ export function buildTransitLayers(
         getSourcePosition: (d) => d.from,
         getTargetPosition: (d) => d.to,
         getHeight: 0.35,
-        getWidth: (d) => Math.max(0.4, Math.min(2.5, Math.sqrt(d.pax) / 1000)),
-        getSourceColor: MODE_COLORS.air,
-        getTargetColor: [186, 104, 200, 50],
+        getWidth: (d) => Math.max(0.4, Math.min(2.5, Math.sqrt(d.pax) / 1000)) * focus.lineWidth,
+        getSourceColor: boostAlpha(MODE_COLORS.air, focus.alphaBoost),
+        getTargetColor: boostAlpha([186, 104, 200, 50], focus.alphaBoost),
         pickable: true,
         autoHighlight: true,
         onHover: hover,
@@ -316,9 +331,9 @@ export function buildTransitLayers(
         id: "airports",
         data: data.airports,
         pointType: "circle",
-        getPointRadius: 400,
+        getPointRadius: 400 * focus.pointRadius,
         pointRadiusMinPixels: 2.5,
-        pointRadiusMaxPixels: 8,
+        pointRadiusMaxPixels: 8 * focus.pointRadius,
         getFillColor: [240, 98, 146, 235],
         getLineColor: [11, 16, 32, 255],
         lineWidthMinPixels: 0.5,
@@ -335,9 +350,9 @@ export function buildTransitLayers(
         id: "rail-stations",
         data: data.railStations,
         pointType: "circle",
-        getPointRadius: 40,
-        pointRadiusMinPixels: 1.2,
-        pointRadiusMaxPixels: 6,
+        getPointRadius: 40 * focus.pointRadius,
+        pointRadiusMinPixels: 1.2 * focus.pointRadius,
+        pointRadiusMaxPixels: 6 * focus.pointRadius,
         getFillColor: [232, 237, 247, 235],
         getLineColor: [11, 16, 32, 255],
         lineWidthMinPixels: 0.5,
