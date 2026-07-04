@@ -34,6 +34,21 @@ npm run dev            # Webアプリ http://localhost:5173 (このリポジト�
 
 `--limit N` でフィード数を絞ったスモーク実行が可能(bus/timetable)。
 
+### 追加GTFSフィード(gtfs-data.jp に無い事業者)
+
+`data/raw/extra-gtfs/` にGTFS(-JP) zipを手動配置すると、bus.ts が通常フィードと
+同様に処理してマージする。事業者名は agency.txt から取得(無ければzipファイル名)。
+
+例: ちゅうバス(府中市コミュニティバス、京王バス受託)は gtfs-data.jp 非掲載。
+ODPT「京王バス / Keio Bus」全路線GTFS-JPに含まれる:
+
+1. https://developer.odpt.org/ でユーザー登録(無料)
+2. https://ckan.odpt.org/dataset/keio_bus_all_lines から最新zipをDL
+3. `data/raw/extra-gtfs/keio-bus.zip` として配置し `npx tsx pipeline/src/build/bus.ts` を再実行
+
+ライセンス: 公共交通オープンデータ基本ライセンス(出典表記が必要。opフィールドに
+事業者名を保持し、attributionはGTFS-JP各フィードの扱いに準ずる)。
+
 ## 外部API・キー
 
 | サービス | キー | 用途 | 設定方法 |

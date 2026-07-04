@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { listFeeds, fetchFeed, type GtfsFeedInfo } from "../sources/gtfs-jp";
+import { listFeeds, fetchFeed } from "../sources/gtfs-jp";
+import { listExtraFeeds } from "../sources/extra-gtfs";
 import { parseCsv } from "./csv";
 import { OUT_DIR } from "./util";
 
@@ -37,8 +38,7 @@ function readCsvIfExists(dir: string, name: string): Record<string, string>[] {
   return existsSync(p) ? parseCsv(readFileSync(p, "utf8")) : [];
 }
 
-function processFeed(feed: GtfsFeedInfo, dir: string): FeedResult {
-  const org = feed.organization_name;
+function processFeed(org: string, dir: string): FeedResult {
   const stops: GeoJSON.Feature[] = [];
   for (const s of readCsvIfExists(dir, "stops.txt")) {
     // 駅構造体(location_type=1)や入口(2)等は除外し、乗降可能な停留所のみ
@@ -134,7 +134,7 @@ async function main() {
         continue;
       }
       try {
-        const { stops, shapes } = processFeed(feed, dir);
+        const { stops, shapes } = processFeed(feed.organization_name, dir);
         if (shapes.length === 0) noShapes++;
         allStops.push(...stops);
         allShapes.push(...shapes);
@@ -146,6 +146,18 @@ async function main() {
     }
   });
   await Promise.all(workers);
+
+  // gtfs-data.jp に無い事業者の手動配置フィード(data/raw/extra-gtfs/*.zip)
+  for (const extra of listExtraFeeds()) {
+    try {
+      const { stops, shapes } = processFeed(extra.organizationName, extra.dir);
+      allStops.push(...stops);
+      allShapes.push(...shapes);
+      console.log(`[bus] extra feed ${extra.organizationName}: stops=${stops.length} shapes=${shapes.length}`);
+    } catch (e) {
+      console.warn(`[bus] extra feed failed ${extra.organizationName}: ${(e as Error).message}`);
+    }
+  }
 
   writeFileSync(
     path.join(OUT_DIR, "bus-stops.geojson"),
