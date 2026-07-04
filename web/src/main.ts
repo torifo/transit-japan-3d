@@ -50,7 +50,7 @@ async function init() {
     showError(`一部データを取得できませんでした: ${missing.join(", ")}(パイプライン未実行の可能性)`);
   }
 
-  const state: LayerState = { rail: true, stations: true, bus: false, ferry: true, air: true, ropeway: true };
+  const state: LayerState = { rail: true, stations: true, bus: false, ferry: true, air: true, intl: false, ropeway: true };
   let focusMode: FocusMode | null = readModeFromHash();
   let era = CURRENT_YEAR;
   let vehiclesOn = false;
@@ -61,7 +61,7 @@ async function init() {
     shell.overlay.setProps({ layers: vehicleLayer ? [...staticLayers, vehicleLayer] : staticLayers });
   };
   const render = () => {
-    const s = focusMode ? focusLayerState(focusMode, state.stations) : state;
+    const s = focusMode ? focusLayerState(focusMode, state) : state;
     staticLayers = buildTransitLayers(data, s, tooltip, era, focusMode ? FOCUS_STYLE : undefined);
     apply();
   };

@@ -22,6 +22,8 @@ export type LayerState = {
   bus: boolean;
   ferry: boolean;
   air: boolean;
+  /** 国際線アークの表示(既定オフ。データには常に含まれる) */
+  intl: boolean;
   ropeway: boolean;
 };
 
@@ -151,21 +153,24 @@ interface AirArc {
   to: [number, number];
   n: string;
   pax: number;
+  intl: boolean;
 }
 
-function toArcs(fc: GeoJSON.FeatureCollection): AirArc[] {
+function toArcs(fc: GeoJSON.FeatureCollection, includeIntl: boolean): AirArc[] {
   return fc.features
     .filter((f) => f.geometry?.type === "LineString" && (f.geometry as GeoJSON.LineString).coordinates.length >= 2)
     .map((f) => {
       const coords = (f.geometry as GeoJSON.LineString).coordinates;
-      const p = f.properties as { n?: string; pax?: number };
+      const p = f.properties as { n?: string; pax?: number; intl?: boolean };
       return {
         from: coords[0] as [number, number],
         to: coords[coords.length - 1] as [number, number],
         n: p?.n ?? "",
         pax: p?.pax ?? 0,
+        intl: p?.intl ?? false,
       };
-    });
+    })
+    .filter((a) => includeIntl || !a.intl);
 }
 
 /** フォーカスモード時の強調係数。overview(null)では全て1 */
@@ -311,7 +316,7 @@ export function buildTransitLayers(
     layers.push(
       new ArcLayer<AirArc>({
         id: "air-routes",
-        data: toArcs(data.airRoutes),
+        data: toArcs(data.airRoutes, state.intl),
         getSourcePosition: (d) => d.from,
         getTargetPosition: (d) => d.to,
         getHeight: 0.35,

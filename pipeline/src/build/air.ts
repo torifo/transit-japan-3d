@@ -18,10 +18,13 @@ async function main() {
     const p = f.properties as Record<string, unknown> | null;
     return f.geometry?.type === "LineString" && p?.S10b_001 && p?.S10b_004;
   });
+  // 国際線は空港名が「国名(都市)」形式(国内空港名に括弧は無い)
+  const isIntl = (name: unknown) => /[(（]/.test(String(name ?? ""));
   for (const f of routes.features) {
     const p = f.properties ?? {};
     const pax = (Number(p.S10b_007) || 0) + (Number(p.S10b_008) || 0);
-    f.properties = { n: `${p.S10b_001}〜${p.S10b_004}`, op: null, mode: "air", pax };
+    const intl = isIntl(p.S10b_001) || isIntl(p.S10b_004);
+    f.properties = { n: `${p.S10b_001}〜${p.S10b_004}`, op: null, mode: "air", pax, intl };
   }
   const outRoutes = path.join(OUT_DIR, "air-routes.geojson");
   writeFileSync(outRoutes, JSON.stringify(routes));

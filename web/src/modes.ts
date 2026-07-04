@@ -20,14 +20,15 @@ export function toFocusMode(featureMode: string | undefined): FocusMode | null {
   return (FOCUS_MODES as readonly string[]).includes(featureMode) ? (featureMode as FocusMode) : null;
 }
 
-/** フォーカス中に表示するレイヤー構成(駅・停留所は点レイヤーとして常に道連れ) */
-export function focusLayerState(mode: FocusMode, stations: boolean): LayerState {
+/** フォーカス中に表示するレイヤー構成。駅・国際線トグルはユーザー設定を引き継ぐ */
+export function focusLayerState(mode: FocusMode, base: LayerState): LayerState {
   return {
     rail: mode === "rail",
-    stations: mode === "rail" && stations,
+    stations: mode === "rail" && base.stations,
     bus: mode === "bus",
     ferry: mode === "ferry",
     air: mode === "air",
+    intl: mode === "air" && base.intl,
     ropeway: mode === "ropeway",
   };
 }
