@@ -17,6 +17,7 @@ import {
   type FocusMode,
 } from "./modes";
 import { VehicleAnimator } from "./anim/vehicles";
+import { ApproxRail } from "./anim/approx-rail";
 import { setupTooltip, showError } from "./ui/panel";
 import { setupSearch } from "./ui/search";
 import { StationPanel } from "./ui/station-panel";
@@ -67,7 +68,9 @@ async function init() {
   };
 
   // 車両アニメーション(時刻表補間)。過去年表示中は現代の車両を出さない
+  // GTFS未提供の鉄道はN02形状からの近似運行(approx-rail)で補完する
   const animator = new VehicleAnimator();
+  const approxRail = new ApproxRail();
   const clockEl = document.getElementById("clock")!;
   const vehCountEl = document.getElementById("veh-count")!;
   const vehicleCtl = document.getElementById("vehicle-ctl") as HTMLElement;
@@ -82,7 +85,7 @@ async function init() {
   const loop = () => {
     if (!vehiclesOn) return;
     if (era >= CURRENT_YEAR) {
-      const vehicles = animator.tick();
+      const vehicles = [...animator.tick(), ...approxRail.tick(animator.clockSec, shell.map)];
       vehicleLayer = animator.buildLayer(vehicles, (info) => {
         const v = info.object as { name?: string; op?: string } | undefined;
         if (v) tooltip.show(v.name || "(路線名なし)", v.op ?? "", info.x, info.y);
@@ -113,6 +116,7 @@ async function init() {
         showError("時刻表データがありません(pipeline/build/timetable.ts を実行)");
         return;
       }
+      approxRail.build(data.railSections);
       animator.syncViewport(shell.map);
       loop();
     } else {

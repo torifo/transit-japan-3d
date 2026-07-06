@@ -23,7 +23,7 @@ interface LoadedFeed {
   trips: Trip[];
 }
 
-interface Vehicle {
+export interface Vehicle {
   position: [number, number];
   routeType: number;
   name: string;
