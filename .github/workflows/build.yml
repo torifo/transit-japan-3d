@@ -1,0 +1,48 @@
+# ビルド専用ワークフロー(公開先が決まるまでデプロイはしない)。
+# - GitHub Pages にする場合: リポジトリ変数 BASE_PATH に "/<リポジトリ名>/" を設定し、
+#   下部のコメントアウトを外して Pages(Source: GitHub Actions) を有効化する。
+# - VPS にする場合: build成果物(artifact)を rsync/scp するdeployジョブを追加する。
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          BASE_PATH: ${{ vars.BASE_PATH || '/' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: web/dist
+          retention-days: 7
+
+  # --- GitHub Pages を使う場合はここを有効化 ---
+  # deploy-pages:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     pages: write
+  #     id-token: write
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with: { name: site, path: dist }
+  #     - uses: actions/upload-pages-artifact@v3
+  #       with: { path: dist }
+  #     - id: deployment
+  #       uses: actions/deploy-pages@v4
