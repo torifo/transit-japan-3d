@@ -9,6 +9,8 @@ interface FeedIndexEntry {
   k: string;
   bbox: [number, number, number, number];
   trips: number;
+  /** このズーム以上でロード(省略時はMIN_ZOOM)。近似ダイヤの船・飛行機は0 */
+  z?: number;
 }
 
 /** [sec, lon, lat] の列 */
@@ -61,10 +63,11 @@ export class VehicleAnimator {
 
   /** 表示中のviewportに交差するフィードを遅延ロード */
   syncViewport(map: maplibregl.Map): void {
-    if (map.getZoom() < MIN_ZOOM) return;
+    const zoom = map.getZoom();
     const b = map.getBounds();
     const want = this.index.filter(
       (e) =>
+        zoom >= (e.z ?? MIN_ZOOM) &&
         e.bbox[0] <= b.getEast() && e.bbox[2] >= b.getWest() && e.bbox[1] <= b.getNorth() && e.bbox[3] >= b.getSouth(),
     );
     for (const e of want) {
