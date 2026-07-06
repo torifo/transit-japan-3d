@@ -128,8 +128,8 @@ export class ApproxRail {
     return [x0 + (x1 - x0) * f, y0 + (y1 - y0) * f];
   }
 
-  /** 現在時刻の近似列車一覧(viewport内・ズーム条件を満たす路線のみ) */
-  tick(clockSec: number, map: maplibregl.Map): Vehicle[] {
+  /** 現在時刻の近似列車一覧(viewport内・ズーム条件を満たす路線のみ)。routeで単一路線に絞れる */
+  tick(clockSec: number, map: maplibregl.Map, route: { n: string; op: string } | null = null): Vehicle[] {
     // クロックは0〜30時(深夜帯含む)。5:00前・24:30以降は運行なし
     if (clockSec < SERVICE_START || clockSec > SERVICE_END) return [];
     const sec = clockSec;
@@ -137,8 +137,9 @@ export class ApproxRail {
     const b = map.getBounds();
     const out: Vehicle[] = [];
     for (const c of this.chains) {
+      if (route && (c.name !== route.n || c.op !== route.op)) continue;
       const prm = MODE_PARAMS[c.mode];
-      if (zoom < prm.minZoom) continue;
+      if (!route && zoom < prm.minZoom) continue;
       if (c.bbox[0] > b.getEast() || c.bbox[2] < b.getWest() || c.bbox[1] > b.getNorth() || c.bbox[3] < b.getSouth())
         continue;
       const vKmSec = prm.speedKmh / 3600;

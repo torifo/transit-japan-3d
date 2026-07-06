@@ -49,18 +49,38 @@ export function flyToFocus(map: maplibregl.Map, mode: FocusMode | null) {
   // 全体表示に戻るときはカメラを動かさない(ユーザーの現在地感を保つ)
 }
 
-/** location.hash の &mode= を読む(maplibre hash:"map" と共存) */
-export function readModeFromHash(): FocusMode | null {
-  const params = new URLSearchParams(location.hash.replace(/^#/, ""));
-  const m = params.get("mode");
-  return m && (FOCUS_MODES as readonly string[]).includes(m) ? (m as FocusMode) : null;
+/** 路線フォーカスの対象("op|路線名"でURLに載せる) */
+export interface RouteRef {
+  n: string;
+  op: string;
 }
 
-/** &mode= を書き換える。map= 等の他パラメータは保持する */
-export function writeModeToHash(mode: FocusMode | null) {
+export interface FocusRef {
+  mode: FocusMode | null;
+  route: RouteRef | null;
+}
+
+/** location.hash の &mode= と &route= を読む(maplibre hash:"map" と共存) */
+export function readFocusFromHash(): FocusRef {
+  const params = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const m = params.get("mode");
+  const mode = m && (FOCUS_MODES as readonly string[]).includes(m) ? (m as FocusMode) : null;
+  const r = params.get("route");
+  let route: RouteRef | null = null;
+  if (mode && r) {
+    const sep = r.indexOf("|");
+    if (sep >= 0) route = { op: r.slice(0, sep), n: r.slice(sep + 1) };
+  }
+  return { mode, route };
+}
+
+/** &mode= / &route= を書き換える。map= 等の他パラメータは保持する */
+export function writeFocusToHash(mode: FocusMode | null, route: RouteRef | null = null) {
   const params = new URLSearchParams(location.hash.replace(/^#/, ""));
   if (mode) params.set("mode", mode);
   else params.delete("mode");
+  if (mode && route) params.set("route", `${route.op}|${route.n}`);
+  else params.delete("route");
   // URLSearchParams は "/" を %2F にするが maplibre は素の "/" を書く。見た目を保つため戻す
   const hash = params.toString().replace(/%2F/gi, "/");
   location.hash = hash;

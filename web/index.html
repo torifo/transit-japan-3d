@@ -93,6 +93,9 @@
       body[data-focus="air"] #panel label.row-intl { display: flex; }
       body[data-focus]:not([data-focus="rail"]) #legend { display: none; }
       body[data-focus]:not([data-focus="rail"]) #era { display: none; }
+      /* 路線フォーカス中は年代スライダーを出さない(単一路線に時系列は不要) */
+      body[data-focus-route] #era { display: none; }
+      #focus-title { max-width: 210px; overflow-wrap: anywhere; }
 
       #era {
         position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 50%;

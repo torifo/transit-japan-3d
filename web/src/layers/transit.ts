@@ -183,6 +183,23 @@ export interface FocusStyle {
 
 const NO_FOCUS: FocusStyle = { lineWidth: 1, pointRadius: 1, alphaBoost: 1 };
 
+/** 路線フォーカス: op+路線名が一致する地物のみ残す。nを持たない地物(バス停等)はopのみで判定 */
+export interface RouteFilter {
+  n: string;
+  op: string;
+}
+
+export function filterRoute(fc: GeoJSON.FeatureCollection, route: RouteFilter): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: fc.features.filter((f) => {
+      const p = f.properties as { n?: string | null; op?: string | null } | null;
+      if (p?.n == null) return (p?.op ?? "") === route.op;
+      return p.n === route.n && (p.op ?? "") === route.op;
+    }),
+  };
+}
+
 function boostAlpha(color: [number, number, number, number], f: number): [number, number, number, number] {
   return [color[0], color[1], color[2], Math.min(255, Math.round(color[3] * f))];
 }
@@ -193,9 +210,12 @@ export function buildTransitLayers(
   tooltip: Tooltip,
   era: number = CURRENT_YEAR,
   focus: FocusStyle = NO_FOCUS,
+  route: RouteFilter | null = null,
 ): Layer[] {
   const layers: Layer[] = [];
   const hover = (info: PickingInfo) => showTooltip(info, tooltip);
+  // 路線フォーカス時は対象路線の地物のみ残す(空港は発着の文脈として残す)
+  const byRoute = (fc: GeoJSON.FeatureCollection) => (route ? filterRoute(fc, route) : fc);
   // 過去年ではN02現況の代わりにN05時系列(当時の路線網)を描画する。
   // 履歴データ未取得のまま現況へフォールバックすると「過去なのに現在の網」に見えるため、
   // 過去年では履歴データが揃うまで鉄道レイヤーを出さない
@@ -205,7 +225,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "ferry-routes",
-        data: data.ferryRoutes,
+        data: byRoute(data.ferryRoutes),
         lineWidthUnits: "pixels",
         getLineWidth: 1.2 * focus.lineWidth,
         getLineColor: boostAlpha(MODE_COLORS.ferry, focus.alphaBoost),
@@ -220,7 +240,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "rail-history-sections",
-        data: filterByEra(data.historySections, era),
+        data: byRoute(filterByEra(data.historySections, era)),
         lineWidthUnits: "pixels",
         getLineWidth: 1.8 * focus.lineWidth,
         getLineColor: boostAlpha(MODE_COLORS.jr, focus.alphaBoost),
@@ -235,7 +255,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "rail-history-stations",
-        data: filterByEra(data.historyStations, era),
+        data: byRoute(filterByEra(data.historyStations, era)),
         pointType: "circle",
         getPointRadius: 40 * focus.pointRadius,
         pointRadiusMinPixels: 1.2 * focus.pointRadius,
@@ -254,7 +274,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "rail-sections",
-        data: data.railSections,
+        data: byRoute(data.railSections),
         lineWidthUnits: "pixels",
         getLineWidth: (f) => (f.properties?.mode === "shinkansen" ? 2.5 : 1.5) * focus.lineWidth,
         getLineColor: (f) =>
@@ -271,7 +291,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "bus-routes",
-        data: data.busRoutes,
+        data: byRoute(data.busRoutes),
         lineWidthUnits: "pixels",
         getLineWidth: 1 * focus.lineWidth,
         getLineColor: boostAlpha(MODE_COLORS.bus, focus.alphaBoost),
@@ -285,7 +305,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "bus-stops",
-        data: data.busStops,
+        data: byRoute(data.busStops),
         pointType: "circle",
         getPointRadius: 15 * focus.pointRadius,
         pointRadiusMinPixels: 0.5,
@@ -302,7 +322,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "ropeways",
-        data: data.ropeways,
+        data: byRoute(data.ropeways),
         lineWidthUnits: "pixels",
         getLineWidth: 2 * focus.lineWidth,
         getLineColor: MODE_COLORS.ropeway,
@@ -321,7 +341,7 @@ export function buildTransitLayers(
     layers.push(
       new ArcLayer<AirArc>({
         id: "air-routes",
-        data: toArcs(data.airRoutes, state.intl),
+        data: toArcs(byRoute(data.airRoutes), state.intl),
         getSourcePosition: (d) => d.from,
         getTargetPosition: (d) => d.to,
         getHeight: 0.35,
@@ -358,7 +378,7 @@ export function buildTransitLayers(
     layers.push(
       new GeoJsonLayer({
         id: "rail-stations",
-        data: data.railStations,
+        data: byRoute(data.railStations),
         pointType: "circle",
         getPointRadius: 40 * focus.pointRadius,
         pointRadiusMinPixels: 1.2 * focus.pointRadius,
