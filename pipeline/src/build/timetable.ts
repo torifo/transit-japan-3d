@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import { listFeeds, fetchFeed, type GtfsFeedInfo } from "../sources/gtfs-jp";
 import { parseCsv } from "./csv";
-import { gtfsTimeToSec } from "./timetable-util";
+import { densifyAlongShape, gtfsTimeToSec, type SeqPoint } from "./timetable-util";
 import { OUT_DIR } from "./util";
 
 // 車両アニメーション用: フィードごとに trip の (時刻,座標) 列を集約したJSONを生成
@@ -75,7 +75,35 @@ async function processFeed(feed: GtfsFeedInfo, dir: string): Promise<FeedIndexEn
   }
   const routes = new Map(readCsvIfExists(dir, "routes.txt").map((r) => [r.route_id, r]));
   const tripRoute = new Map<string, string>();
-  for (const t of readCsvIfExists(dir, "trips.txt")) tripRoute.set(t.trip_id, t.route_id);
+  const tripShape = new Map<string, string>();
+  for (const t of readCsvIfExists(dir, "trips.txt")) {
+    tripRoute.set(t.trip_id, t.route_id);
+    if (t.shape_id) tripShape.set(t.trip_id, t.shape_id);
+  }
+
+  // shape_id → 順序付き点列(形状沿い補間用)
+  const shapePoints = new Map<string, [number, number][]>();
+  {
+    const raw = new Map<string, [number, number, number][]>();
+    for (const p of readCsvIfExists(dir, "shapes.txt")) {
+      const seq = Number(p.shape_pt_sequence);
+      const lon = Number(p.shape_pt_lon);
+      const lat = Number(p.shape_pt_lat);
+      if (!Number.isFinite(seq) || !Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+      let arr = raw.get(p.shape_id);
+      if (!arr) {
+        arr = [];
+        raw.set(p.shape_id, arr);
+      }
+      arr.push([seq, lon, lat]);
+    }
+    for (const [id, pts] of raw) {
+      shapePoints.set(
+        id,
+        pts.sort((a, b) => a[0] - b[0]).map(([, lon, lat]) => [lon, lat] as [number, number]),
+      );
+    }
+  }
 
   // trip_id → 時刻順の点列
   const tripPoints = new Map<string, TripPoint[]>();
@@ -100,7 +128,12 @@ async function processFeed(feed: GtfsFeedInfo, dir: string): Promise<FeedIndexEn
     const r = routeId ? routes.get(routeId) : undefined;
     const name = r ? r.route_long_name || r.route_short_name || "" : "";
     const routeType = r ? Number(r.route_type) || 3 : 3;
-    const seq: [number, number, number][] = pts.map((p) => [p.sec, p.lon, p.lat]);
+    let seq: SeqPoint[] = pts.map((p) => [p.sec, p.lon, p.lat]);
+    // 形状データがあれば停留所間を路線沿いの中間点で埋める(曲がり角のショートカット防止)
+    const shape = tripShape.has(tripId) ? shapePoints.get(tripShape.get(tripId)!) : undefined;
+    if (shape) {
+      seq = densifyAlongShape(seq, shape).map(([t, lon, lat]) => [t, round(lon), round(lat)]);
+    }
     for (const p of pts) {
       if (p.lon < minLon) minLon = p.lon;
       if (p.lon > maxLon) maxLon = p.lon;
