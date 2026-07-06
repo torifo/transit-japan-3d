@@ -56,7 +56,7 @@ export class VehicleAnimator {
 
   async init(): Promise<boolean> {
     try {
-      const r = await fetch("/data/tt/index.json");
+      const r = await fetch(`${import.meta.env.BASE_URL}data/tt/index.json`);
       if (!r.ok) return false;
       this.index = await r.json();
       return true;
@@ -77,7 +77,7 @@ export class VehicleAnimator {
       if (this.loaded.has(e.k) || this.loading.has(e.k)) continue;
       if (this.loaded.size >= MAX_LOADED_FEEDS) break;
       this.loading.add(e.k);
-      fetch(`/data/tt/${e.k}.json`)
+      fetch(`${import.meta.env.BASE_URL}data/tt/${e.k}.json`)
         .then((r) => (r.ok ? r.json() : null))
         .then((json) => {
           if (json) this.loaded.set(e.k, json);

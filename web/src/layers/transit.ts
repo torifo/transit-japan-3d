@@ -52,8 +52,8 @@ export function loadHistoryData(data: TransitData): Promise<void> {
   if (data.historySections && data.historyStations) return Promise.resolve();
   historyLoad ??= (async () => {
     const [historySections, historyStations] = await Promise.all([
-      data.historySections ? Promise.resolve(data.historySections) : fetchOptional("/data/rail-history-sections.geojson"),
-      data.historyStations ? Promise.resolve(data.historyStations) : fetchOptional("/data/rail-history-stations.geojson"),
+      data.historySections ? Promise.resolve(data.historySections) : fetchOptional("data/rail-history-sections.geojson"),
+      data.historyStations ? Promise.resolve(data.historyStations) : fetchOptional("data/rail-history-stations.geojson"),
     ]);
     data.historySections = historySections;
     data.historyStations = historyStations;
@@ -88,8 +88,8 @@ export function loadBusData(data: TransitData): Promise<void> {
   if (data.busRoutes && data.busStops) return Promise.resolve();
   busLoad ??= (async () => {
     const [busRoutes, busStops] = await Promise.all([
-      data.busRoutes ? Promise.resolve(data.busRoutes) : fetchOptional("/data/bus-routes.geojson"),
-      data.busStops ? Promise.resolve(data.busStops) : fetchOptional("/data/bus-stops.geojson"),
+      data.busRoutes ? Promise.resolve(data.busRoutes) : fetchOptional("data/bus-routes.geojson"),
+      data.busStops ? Promise.resolve(data.busStops) : fetchOptional("data/bus-stops.geojson"),
     ]);
     data.busRoutes = busRoutes;
     data.busStops = busStops;
@@ -100,7 +100,8 @@ export function loadBusData(data: TransitData): Promise<void> {
 
 async function fetchOptional(url: string): Promise<GeoJSON.FeatureCollection | null> {
   try {
-    const r = await fetch(url);
+    // サブパス公開(GitHub Pages等)でも動くようbase相対で解決する
+    const r = await fetch(import.meta.env.BASE_URL + url);
     if (!r.ok) return null;
     return await r.json();
   } catch {
@@ -113,7 +114,7 @@ const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: 
 /** 一部データの取得失敗では全体を止めず、取れたレイヤーだけ返す */
 export async function loadTransitData(): Promise<{ data: TransitData; missing: string[] }> {
   const names = ["rail-sections", "rail-stations", "ferry-routes", "air-routes", "airports", "ropeways"];
-  const results = await Promise.all(names.map((n) => fetchOptional(`/data/${n}.geojson`)));
+  const results = await Promise.all(names.map((n) => fetchOptional(`data/${n}.geojson`)));
   const missing = names.filter((_, i) => results[i] === null);
   const [railSections, railStations, ferryRoutes, airRoutes, airports, ropeways] = results;
   return {
