@@ -1,4 +1,5 @@
-import { ScatterplotLayer } from "@deck.gl/layers";
+import { IconLayer } from "@deck.gl/layers";
+import { vehicleIcon } from "./icons";
 import type { Layer } from "@deck.gl/core";
 import type maplibregl from "maplibre-gl";
 
@@ -30,14 +31,7 @@ interface Vehicle {
 const MAX_LOADED_FEEDS = 60;
 const MIN_ZOOM = 8.5;
 
-// route_type別カラー(GTFS: 0=tram 1=metro 2=rail 3=bus 4=ferry)
-const TYPE_COLORS: Record<number, [number, number, number, number]> = {
-  0: [255, 99, 132, 255],
-  1: [186, 104, 200, 255],
-  2: [91, 140, 255, 255],
-  3: [255, 202, 40, 255],
-  4: [77, 208, 225, 255],
-};
+// 表示アイコンは icons.ts (route_type別の乗り物グリフ) を参照
 
 export class VehicleAnimator {
   private index: FeedIndexEntry[] = [];
@@ -122,16 +116,15 @@ export class VehicleAnimator {
   }
 
   buildLayer(vehicles: Vehicle[], onHover: (info: { object?: unknown; x: number; y: number }) => void): Layer {
-    return new ScatterplotLayer<Vehicle>({
+    return new IconLayer<Vehicle>({
       id: "vehicles",
       data: vehicles,
       getPosition: (d) => d.position,
-      getFillColor: (d) => TYPE_COLORS[d.routeType] ?? TYPE_COLORS[3],
-      getLineColor: [13, 34, 64, 255],
-      lineWidthMinPixels: 1,
-      stroked: true,
-      radiusUnits: "pixels",
-      getRadius: 4,
+      getIcon: (d) => vehicleIcon(d.routeType),
+      sizeUnits: "pixels",
+      getSize: 18,
+      sizeMinPixels: 12,
+      sizeMaxPixels: 28,
       pickable: true,
       onHover,
     });
